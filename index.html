@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   
@@ -1368,7 +1367,9 @@ textarea.fctl{resize:vertical;min-height:65px;}
       </div>
 
       <div class="search-box">
-        <input type="text" class="search-input" id="search-retorno" placeholder="Pesquisar...">
+        <input type="text" class="search-input" id="search-retorno" placeholder="Pesquisar loja ou NF...">
+        <input type="date" id="filter-retorno-data-inicio" class="fctl" style="max-width:150px;" title="Data Inicial">
+        <input type="date" id="filter-retorno-data-fim" class="fctl" style="max-width:150px;" title="Data Final">
         <select id="filter-retorno-status" class="fctl" style="max-width:150px;">
           <option value="">Status</option>
           <option value="FALTA">Falta</option>
@@ -25697,7 +25698,9 @@ textarea.fctl{resize:vertical;min-height:65px;}
       </div>
 
       <div class="search-box">
-        <input type="text" class="search-input" id="search-triagem" placeholder="Pesquisar...">
+        <input type="text" class="search-input" id="search-triagem" placeholder="Pesquisar loja...">
+        <input type="date" id="filter-triagem-data-inicio" class="fctl" style="max-width:150px;" title="Data Inicial">
+        <input type="date" id="filter-triagem-data-fim" class="fctl" style="max-width:150px;" title="Data Final">
       </div>
 
       <div class="card">
@@ -28901,7 +28904,9 @@ textarea.fctl{resize:vertical;min-height:65px;}
       </div>
 
       <div class="search-box">
-        <input type="text" class="search-input" id="search-saida" placeholder="Pesquisar...">
+        <input type="text" class="search-input" id="search-saida" placeholder="Pesquisar fornecedor...">
+        <input type="date" id="filter-saida-data-inicio" class="fctl" style="max-width:150px;" title="Data Inicial">
+        <input type="date" id="filter-saida-data-fim" class="fctl" style="max-width:150px;" title="Data Final">
       </div>
 
       <div class="card">
@@ -34702,14 +34707,37 @@ function loadData(){
   S.lojas=DADOS_INICIAIS.lojas;
   S.materiais=DADOS_INICIAIS.materiais;
   S.colaboradores=DADOS_INICIAIS.colaboradores;
-  S.retornos=[];
-  S.saidaFornecedores=[];
-  S.triagens=[];
+  
+  // Tentar carregar do localStorage
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if(saved){
+    try {
+      const dados = JSON.parse(saved);
+      S.retornos = dados.retornos || [];
+      S.saidaFornecedores = dados.saidaFornecedores || [];
+      S.triagens = dados.triagens || [];
+      console.log('✓ Dados carregados do localStorage');
+    } catch(e) {
+      console.error('Erro ao carregar localStorage:', e);
+      S.retornos=[];
+      S.saidaFornecedores=[];
+      S.triagens=[];
+    }
+  } else {
+    S.retornos=[];
+    S.saidaFornecedores=[];
+    S.triagens=[];
+  }
 }
 
 function saveData(){
-  // Dados salvos apenas em memória (não persiste ao recarregar)
-  // Para persistência, use http://localhost:8000 ou servidor
+  // Salvar todos os dados no localStorage
+  const dadosParaSalvar = {
+    retornos: S.retornos,
+    saidaFornecedores: S.saidaFornecedores,
+    triagens: S.triagens
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(dadosParaSalvar));
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -35127,8 +35155,8 @@ function closeModalRetorno(){
 // ═════════════════════════════════════════════════════════════
 // FUNÇÃO MODIFICADA: openModalRetorno
 // ═════════════════════════════════════════════════════════════
-async function openModalRetorno(){
-  currentEditIndex.retorno = -1;
+function openModalRetorno(idx = null){
+  currentEditIndex.retorno = idx !== null ? idx : -1;
   
   // Materiais fixos conforme pedido
   const materiaisFIXOS = [
@@ -35144,24 +35172,51 @@ async function openModalRetorno(){
     { id: 10, nome: 'GAIOLA DE MADEIRA' }
   ];
   
-  tempMaterialesRetorno = materiaisFIXOS.map(p => ({
-    produto_id: p.id,
-    material: p.nome,
-    qtdNf: 0,
-    qtdFis: 0,
-    livre: false
-  }));
-  
-  const hoje = new Date().toISOString().split('T')[0];
-  document.getElementById('input-retorno-data').value = hoje;
-  document.getElementById('input-retorno-loja').value = '';
-  document.getElementById('input-retorno-codigo').value = '';
-  document.getElementById('input-retorno-nf').value = '';
-  document.getElementById('input-retorno-operador').value = '';
-  document.getElementById('input-retorno-conferente').value = '';
+  // Se for edição, carrega dados da nota
+  if(idx !== null && S.retornos[idx]){
+    const nota = S.retornos[idx];
+    
+    // Reconstrói temporários com os materiais que estavam na nota
+    tempMaterialesRetorno = nota.materiais ? nota.materiais.map(m => ({
+      produto_id: m.produto_id,
+      material: m.material,
+      qtdNf: m.qtdNf,
+      qtdFis: m.qtdFis,
+      livre: m.livre || false
+    })) : [];
+    
+    document.getElementById('input-retorno-data').value = nota.data || '';
+    document.getElementById('input-retorno-loja').value = nota.loja || '';
+    document.getElementById('input-retorno-codigo').value = nota.cod_loja || '';
+    document.getElementById('input-retorno-nf').value = nota.nf || '';
+    document.getElementById('input-retorno-operador').value = nota.operador || '';
+    document.getElementById('input-retorno-conferente').value = nota.conferente || '';
+  } else {
+    // Novo registro
+    tempMaterialesRetorno = materiaisFIXOS.map(p => ({
+      produto_id: p.id,
+      material: p.nome,
+      qtdNf: 0,
+      qtdFis: 0,
+      livre: false
+    }));
+    
+    const hoje = new Date().toISOString().split('T')[0];
+    document.getElementById('input-retorno-data').value = hoje;
+    document.getElementById('input-retorno-loja').value = '';
+    document.getElementById('input-retorno-codigo').value = '';
+    document.getElementById('input-retorno-nf').value = '';
+    document.getElementById('input-retorno-operador').value = '';
+    document.getElementById('input-retorno-conferente').value = '';
+  }
   
   renderMaterialesRetorno();
   document.getElementById('modal-retorno').classList.add('active');
+}
+
+// Função que o botão chama para editar
+function openModalEditarRetorno(idx){
+  openModalRetorno(idx);
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -35293,11 +35348,23 @@ function renderRetorno(){
   const tbody=document.getElementById('tbody-retorno');
   const search=document.getElementById('search-retorno').value.toLowerCase();
   const statusFilter=document.getElementById('filter-retorno-status').value;
+  const dataInicio = document.getElementById('filter-retorno-data-inicio').value;
+  const dataFim = document.getElementById('filter-retorno-data-fim').value;
   
-  let filtered=S.retornos.filter((r,idx)=>
-    (r.loja.toLowerCase().includes(search)||
-    r.nf.toString().includes(search))&&(r.id)
-  );
+  let filtered=S.retornos.filter((r,idx)=>{
+    // Filtro texto
+    const matchTexto = r.loja.toLowerCase().includes(search) || r.nf.toString().includes(search);
+    
+    // Filtro data
+    let matchData = true;
+    if(dataInicio || dataFim){
+      const dataRetorno = new Date(r.data).toISOString().split('T')[0];
+      if(dataInicio && dataRetorno < dataInicio) matchData = false;
+      if(dataFim && dataRetorno > dataFim) matchData = false;
+    }
+    
+    return matchTexto && matchData && r.id;
+  });
   
   tbody.innerHTML=filtered.map((r,i)=>{
     // Achar índice real no S.retornos
@@ -35423,10 +35490,25 @@ function saveTriagem(){
 function renderTriagem(){
   const tbody=document.getElementById('tbody-triagem');
   const search=document.getElementById('search-triagem').value.toLowerCase();
-  const filtered=S.triagens.filter(t=>
-    t.loja.toLowerCase().includes(search)||
-    t.nfs.includes(search)
-  );
+  const dataInicio = document.getElementById('filter-triagem-data-inicio').value;
+  const dataFim = document.getElementById('filter-triagem-data-fim').value;
+  
+  const filtered=S.triagens.filter(t=>{
+    // Filtro texto
+    const matchTexto = t.loja.toLowerCase().includes(search) || t.nfs.includes(search);
+    
+    // Filtro data (usar dataReceb como base)
+    let matchData = true;
+    if(dataInicio || dataFim){
+      const dataTriagem = t.dataReceb ? new Date(t.dataReceb).toISOString().split('T')[0] : '';
+      if(dataTriagem){
+        if(dataInicio && dataTriagem < dataInicio) matchData = false;
+        if(dataFim && dataTriagem > dataFim) matchData = false;
+      }
+    }
+    
+    return matchTexto && matchData;
+  });
   
   tbody.innerHTML=filtered.map((t,i)=>`
     <tr>
@@ -35508,11 +35590,25 @@ function deleteSaida(idx){
 function renderSaida(){
   const tbody=document.getElementById('tbody-saida');
   const search=document.getElementById('search-saida').value.toLowerCase();
-  const filtered=S.saidaFornecedores.filter(s=>
-    s.fornecedor.toLowerCase().includes(search)||
-    s.material.toLowerCase().includes(search)||
-    s.controle.includes(search)
-  );
+  const dataInicio = document.getElementById('filter-saida-data-inicio').value;
+  const dataFim = document.getElementById('filter-saida-data-fim').value;
+  
+  const filtered=S.saidaFornecedores.filter(s=>{
+    // Filtro texto
+    const matchTexto = s.fornecedor.toLowerCase().includes(search) ||
+                       s.material.toLowerCase().includes(search) ||
+                       s.controle.includes(search);
+    
+    // Filtro data
+    let matchData = true;
+    if(dataInicio || dataFim){
+      const dataSaida = new Date(s.data).toISOString().split('T')[0];
+      if(dataInicio && dataSaida < dataInicio) matchData = false;
+      if(dataFim && dataSaida > dataFim) matchData = false;
+    }
+    
+    return matchTexto && matchData;
+  });
   
   tbody.innerHTML=filtered.map((s,i)=>{
     const saldoClass=s.saldo>0?'status-ok':s.saldo<0?'status-falta':'status-ok';
@@ -35687,8 +35783,14 @@ function renderAll(){
   document.getElementById('search-colab').addEventListener('input',renderColabsBase);
   document.getElementById('search-retorno').addEventListener('input',renderRetorno);
   document.getElementById('filter-retorno-status').addEventListener('change',renderRetorno);
+  document.getElementById('filter-retorno-data-inicio').addEventListener('change',renderRetorno);
+  document.getElementById('filter-retorno-data-fim').addEventListener('change',renderRetorno);
   document.getElementById('search-triagem').addEventListener('input',renderTriagem);
+  document.getElementById('filter-triagem-data-inicio').addEventListener('change',renderTriagem);
+  document.getElementById('filter-triagem-data-fim').addEventListener('change',renderTriagem);
   document.getElementById('search-saida').addEventListener('input',renderSaida);
+  document.getElementById('filter-saida-data-inicio').addEventListener('change',renderSaida);
+  document.getElementById('filter-saida-data-fim').addEventListener('change',renderSaida);
 }
 
 </script>
