@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   
@@ -129,6 +130,9 @@ textarea.fctl{resize:vertical;min-height:65px;}
 .item-info{flex:1;}
 .item-info-main{font-weight:600;color:var(--text);}
 .item-info-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.status-ok{color:#10b981;font-weight:600;}
+.status-sobra{color:#f59e0b;font-weight:600;}
+.status-falta{color:#ef4444;font-weight:600;}
 @media(max-width:768px){
   .sidebar{width:100%;transform:translateX(-100%);}.sidebar.open{transform:translateX(0);}
   .main{margin-left:0;}.menu-btn{display:flex;}
@@ -35048,28 +35052,76 @@ function renderMaterialesRetorno(){
   const tbody = document.getElementById('tbody-materiais-retorno');
   if(!tbody) return;
   
-  tbody.innerHTML = tempMaterialesRetorno.map((m, i) => `
-    <tr>
-      <td><strong>${m.material || 'Material'}</strong></td>
-      <td>
-        <input type="number" min="0" value="${m.qtdNf}" 
-          onchange="tempMaterialesRetorno[${i}].qtdNf = parseInt(this.value) || 0; updateDivergenciaRetorno(${i});">
-      </td>
-      <td>
-        <input type="number" min="0" value="${m.qtdFis}" 
-          onchange="tempMaterialesRetorno[${i}].qtdFis = parseInt(this.value) || 0; updateDivergenciaRetorno(${i});">
-      </td>
-      <td id="divergencia-${i}">${m.qtdNf - m.qtdFis}</td>
-    </tr>
-  `).join('');
+  tbody.innerHTML = tempMaterialesRetorno.map((m, i) => {
+    const divergencia = m.qtdNf - m.qtdFis;
+    const status = divergencia === 0 ? 'OK' : (divergencia > 0 ? 'SOBRA' : 'FALTA');
+    const statusClass = divergencia === 0 ? 'status-ok' : (divergencia > 0 ? 'status-sobra' : 'status-falta');
+    
+    return `
+      <tr>
+        <td><strong>${m.material || 'Material'}</strong></td>
+        <td>
+          <input type="number" min="0" value="${m.qtdNf}" 
+            style="width: 70px; padding: 5px;"
+            onchange="tempMaterialesRetorno[${i}].qtdNf = parseInt(this.value) || 0; updateDivergenciaRetorno(${i});">
+        </td>
+        <td>
+          <input type="number" min="0" value="${m.qtdFis}" 
+            style="width: 70px; padding: 5px;"
+            onchange="tempMaterialesRetorno[${i}].qtdFis = parseInt(this.value) || 0; updateDivergenciaRetorno(${i});">
+        </td>
+        <td id="divergencia-${i}">${divergencia}</td>
+        <td id="status-${i}" class="${statusClass}">${status}</td>
+        <td>
+          ${m.livre ? `<button class="btn btn-xs btn-d" onclick="deletarMaterialLivre(${i})" style="padding: 3px 8px; font-size: 11px;">Remover</button>` : ''}
+        </td>
+      </tr>
+    `;
+  }).join('');
 }
 
 function updateDivergenciaRetorno(idx){
   const m = tempMaterialesRetorno[idx];
-  const cell = document.getElementById(`divergencia-${idx}`);
-  if(cell){
-    cell.textContent = (m.qtdNf - m.qtdFis);
+  const divergencia = m.qtdNf - m.qtdFis;
+  const status = divergencia === 0 ? 'OK' : (divergencia > 0 ? 'SOBRA' : 'FALTA');
+  const statusClass = divergencia === 0 ? 'status-ok' : (divergencia > 0 ? 'status-sobra' : 'status-falta');
+  
+  const cellDiv = document.getElementById(`divergencia-${idx}`);
+  const cellStat = document.getElementById(`status-${idx}`);
+  
+  if(cellDiv) cellDiv.textContent = divergencia;
+  if(cellStat) {
+    cellStat.textContent = status;
+    cellStat.className = statusClass;
   }
+}
+
+// Adicionar material livre à tabela
+function addMaterialLivre(){
+  const nomeMaterial = prompt('Nome do material:');
+  if(!nomeMaterial || nomeMaterial.trim() === '') return;
+  
+  tempMaterialesRetorno.push({
+    produto_id: null,
+    material: nomeMaterial.trim(),
+    qtdNf: 0,
+    qtdFis: 0,
+    livre: true
+  });
+  
+  renderMaterialesRetorno();
+}
+
+// Deletar material adicionado manualmente
+function deletarMaterialLivre(idx){
+  if(!confirm('Remover este material?')) return;
+  tempMaterialesRetorno.splice(idx, 1);
+  renderMaterialesRetorno();
+}
+
+// Fechar modal
+function closeModalRetorno(){
+  document.getElementById('modal-retorno').classList.remove('active');
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -35078,15 +35130,27 @@ function updateDivergenciaRetorno(idx){
 async function openModalRetorno(){
   currentEditIndex.retorno = -1;
   
-  const produtos = await carregarProdutosSupabase();
-  const materiaisFixos = produtos.map(p => ({
+  // Materiais fixos conforme pedido
+  const materiaisFIXOS = [
+    { id: 1, nome: 'CAIXA PLASTICA MODELO G' },
+    { id: 2, nome: 'CAIXA PLASTICA MODELO M' },
+    { id: 3, nome: 'CAIXA PLASTICA MODELO P' },
+    { id: 4, nome: 'CAIXA CARADORI' },
+    { id: 5, nome: 'PALETE PBR' },
+    { id: 6, nome: 'PALETE DESCARTAVEL' },
+    { id: 7, nome: 'PALETE EURO' },
+    { id: 8, nome: 'PALETE CHEP' },
+    { id: 9, nome: 'PALETE EURO CHEP' },
+    { id: 10, nome: 'GAIOLA DE MADEIRA' }
+  ];
+  
+  tempMaterialesRetorno = materiaisFIXOS.map(p => ({
     produto_id: p.id,
     material: p.nome,
     qtdNf: 0,
-    qtdFis: 0
+    qtdFis: 0,
+    livre: false
   }));
-  
-  tempMaterialesRetorno = materiaisFixos;
   
   const hoje = new Date().toISOString().split('T')[0];
   document.getElementById('input-retorno-data').value = hoje;
