@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Retorno de Materiais</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f5f7f0;--bg2:#fff;--bg3:#eef1e8;--border:#d0d8be;--text:#1a2a0e;--text2:#3d5224;--text3:#6b7f52;--accent:#5a9e1f;--accent2:#4a8a12;--red:#d93025;--red2:#b52019;--font:'Outfit',sans-serif;--mono:'JetBrains Mono',monospace;--r:10px;--rs:6px;--tr:.18s;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;}
+.container{max-width:1200px;margin:0 auto;padding:20px;}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border);}
+.title{font-size:24px;font-weight:800;}
+.buttons{display:flex;gap:8px;}
+.btn{padding:9px 17px;border-radius:var(--rs);font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all var(--tr);}
+.btn-p{background:var(--accent2);color:#fff;}.btn-p:hover{background:var(--accent);}
+.btn-d{background:var(--red2);color:#fff;}.btn-d:hover{background:var(--red);}
+.btn-g{background:var(--bg3);border:1px solid var(--border);color:var(--text2);}.btn-g:hover{border-color:var(--accent);}
+.btn-sm{padding:5px 11px;font-size:11px;}
+.btn-xs{padding:3px 8px;font-size:10px;}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:11px;margin-bottom:20px;}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px;}
+.kpi-val{font-size:24px;font-weight:800;font-family:var(--mono);}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:16px;overflow:hidden;}
+.card-hdr{padding:12px 15px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+.card-ttl{font-size:13px;font-weight:700;}
+.tw{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;}
+thead th{padding:9px 13px;text-align:left;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);background:var(--bg3);border-bottom:1px solid var(--border);white-space:nowrap;font-family:var(--mono);}
+tbody tr{border-bottom:1px solid rgba(0,0,0,.05);}
+tbody tr:hover{background:var(--bg3);}
+td{padding:9px 13px;font-size:12px;color:var(--text2);}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:12px;}
+input,select{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--rs);background:var(--bg2);color:var(--text);font-size:13px;font-family:var(--font);}
+input:focus,select:focus{outline:none;border-color:var(--accent);}
+label{display:block;font-size:11px;font-weight:700;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;}
+.material-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:12px;margin-bottom:8px;display:flex;align-items:flex-end;gap:8px;}
+.material-item input{flex:1;}
+.screen{display:none;}
+.screen.active{display:block;}
+.status{padding:8px 12px;border-radius:var(--rs);font-size:11px;font-weight:600;}
+.status-online{background:#3d9e2a;color:#fff;}
+.status-offline{background:#d93025;color:#fff;}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div class="title">📦 Retorno de Materiais</div>
+    <div class="buttons">
+      <div class="status" id="statusBadge">Carregando...</div>
+      <button class="btn btn-g btn-sm" onclick="exportExcel()">📊 Excel</button>
+      <button class="btn btn-g btn-sm" onclick="syncNow()">🔄 Sync</button>
+    </div>
+  </div>
+
+  <div class="screen active" id="screen-lista">
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-bottom:5px;">Total NF</div>
+        <div class="kpi-val" id="kpiTotal">0</div>
+      </div>
+      <div class="kpi">
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-bottom:5px;">Total Materiais</div>
+        <div class="kpi-val" id="kpiMateriais">0</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-ttl">Retornos</div>
+        <div style="display:flex;gap:8px;">
+          <input type="text" placeholder="Buscar..." id="searchInput" style="width:180px;padding:6px 11px;font-size:12px;" onkeyup="filterTable()">
+          <button class="btn btn-p btn-sm" onclick="goScreen('novo')">➕ Novo</button>
+        </div>
+      </div>
+      <div class="tw">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Loja</th>
+              <th>NF</th>
+              <th>Qtd Mat</th>
+              <th>Operador</th>
+              <th>Conferente</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="7" style="text-align:center;padding:20px;">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen" id="screen-novo">
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-ttl" id="formTitle">Novo Retorno</div>
+      </div>
+      <div style="padding:20px;">
+        <div class="form-grid">
+          <div><label>Data</label><input type="date" id="fData"></div>
+          <div><label>Loja</label><input type="text" id="fLoja" placeholder="Ex: Apucarana"></div>
+          <div><label>Código Loja</label><input type="text" id="fCodLoja" placeholder="Ex: 13535"></div>
+          <div><label>Nota Fiscal</label><input type="text" id="fNF" placeholder="Ex: 13535/6"></div>
+          <div><label>Operador</label><input type="text" id="fOperador"></div>
+          <div><label>Conferente</label><input type="text" id="fConferente"></div>
+        </div>
+
+        <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:20px;">
+          <h3 style="font-size:13px;font-weight:700;margin-bottom:12px;">Materiais</h3>
+          <div id="materiaisList"></div>
+          <button class="btn btn-g btn-sm" onclick="adicionarMaterial()">➕ Adicionar Material</button>
+        </div>
+
+        <div style="margin-top:20px;display:flex;gap:8px;">
+          <button class="btn btn-p" onclick="salvarRetorno()">✓ Salvar</button>
+          <button class="btn btn-g" onclick="goScreen('lista')">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen" id="screen-detalhes">
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-ttl" id="detTitle">Detalhes</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-g btn-sm" onclick="editarRetorno()">✏️ Editar</button>
+          <button class="btn btn-d btn-sm" onclick="deletarRetorno()">🗑️ Deletar</button>
+          <button class="btn btn-g btn-sm" onclick="goScreen('lista')">← Voltar</button>
+        </div>
+      </div>
+      <div style="padding:20px;" id="detalhesContent"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let dados = [];
+let editandoId = null;
+let materiaisTemp = [];
+
+async function callSupabase(method, table, data = null, id = null) {
+  try {
+    const body = { method, table };
+    if (data) body.data = data;
+    if (id) body.id = id;
+
+    const res = await fetch('/.netlify/functions/supabase-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (res.ok) return await res.json();
+    throw new Error('Erro ' + res.status);
+  } catch (e) {
+    console.log('Erro:', e.message);
+    return null;
+  }
+}
+
+async function syncNow() {
+  document.getElementById('statusBadge').textContent = 'Sincronizando...';
+
+  const result = await callSupabase('GET', 'retornos');
+  if (result) {
+    dados = result;
+    localStorage.setItem('retornosDados', JSON.stringify(dados));
+    atualizarUI();
+    document.getElementById('statusBadge').textContent = '✓ Online';
+    document.getElementById('statusBadge').className = 'status status-online';
+  } else {
+    carregarLocal();
+    document.getElementById('statusBadge').textContent = '⚠ Offline';
+    document.getElementById('statusBadge').className = 'status status-offline';
+  }
+}
+
+function carregarLocal() {
+  const local = localStorage.getItem('retornosDados');
+  if (local) {
+    dados = JSON.parse(local);
+    atualizarUI();
+  }
+}
+
+function atualizarUI() {
+  const tbody = document.getElementById('tableBody');
+
+  if (dados.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;">Nenhum retorno</td></tr>';
+    document.getElementById('kpiTotal').textContent = '0';
+    document.getElementById('kpiMateriais').textContent = '0';
+    return;
+  }
+
+  const totalMateriais = dados.reduce((sum, d) => sum + (d.materiais ? d.materiais.length : 0), 0);
+  document.getElementById('kpiTotal').textContent = dados.length;
+  document.getElementById('kpiMateriais').textContent = totalMateriais;
+
+  tbody.innerHTML = dados.map((d, idx) => `
+    <tr onclick="verDetalhes(${idx})" style="cursor:pointer;">
+      <td>${d.data || ''}</td>
+      <td>${d.loja || ''}</td>
+      <td>${d.nf || ''}</td>
+      <td>${d.materiais ? d.materiais.length : 0}</td>
+      <td>${d.operador || ''}</td>
+      <td>${d.conferente || ''}</td>
+      <td style="white-space:nowrap;" onclick="event.stopPropagation();">
+        <button class="btn btn-g btn-xs" onclick="editarIdx(${idx})">✏️</button>
+        <button class="btn btn-d btn-xs" onclick="deletarIdx(${idx})">🗑️</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function novoRetorno() {
+  editandoId = null;
+  materiaisTemp = [];
+  document.getElementById('formTitle').textContent = 'Novo Retorno';
+  document.getElementById('fData').value = new Date().toISOString().split('T')[0];
+  document.getElementById('fLoja').value = '';
+  document.getElementById('fCodLoja').value = '';
+  document.getElementById('fNF').value = '';
+  document.getElementById('fOperador').value = '';
+  document.getElementById('fConferente').value = '';
+  renderMateriais();
+  adicionarMaterial();
+}
+
+function adicionarMaterial() {
+  materiaisTemp.push({ material: '', qtd_nf: 0, qtd_fisica: 0 });
+  renderMateriais();
+}
+
+function renderMateriais() {
+  const list = document.getElementById('materiaisList');
+  list.innerHTML = materiaisTemp.map((m, idx) => `
+    <div class="material-item">
+      <input type="text" placeholder="Material" value="${m.material}" onchange="materiaisTemp[${idx}].material=this.value">
+      <input type="number" placeholder="QTD NF" value="${m.qtd_nf}" onchange="materiaisTemp[${idx}].qtd_nf=parseInt(this.value)||0" style="width:80px;">
+      <input type="number" placeholder="QTD FIS" value="${m.qtd_fisica}" onchange="materiaisTemp[${idx}].qtd_fisica=parseInt(this.value)||0" style="width:80px;">
+      <button class="btn btn-d btn-xs" onclick="materiaisTemp.splice(${idx},1);renderMateriais();">🗑️</button>
+    </div>
+  `).join('');
+}
+
+function editarIdx(idx) {
+  editandoId = idx;
+  const d = dados[idx];
+  document.getElementById('formTitle').textContent = 'Editar Retorno';
+  document.getElementById('fData').value = d.data || '';
+  document.getElementById('fLoja').value = d.loja || '';
+  document.getElementById('fCodLoja').value = d.cod_loja || '';
+  document.getElementById('fNF').value = d.nf || '';
+  document.getElementById('fOperador').value = d.operador || '';
+  document.getElementById('fConferente').value = d.conferente || '';
+  materiaisTemp = JSON.parse(JSON.stringify(d.materiais || []));
+  renderMateriais();
+  goScreen('novo');
+}
+
+async function salvarRetorno() {
+  if (!document.getElementById('fData').value || !document.getElementById('fLoja').value || !document.getElementById('fNF').value) {
+    alert('Preencha Data, Loja e NF');
+    return;
+  }
+
+  if (materiaisTemp.length === 0 || materiaisTemp.every(m => !m.material)) {
+    alert('Adicione pelo menos um material');
+    return;
+  }
+
+  const obj = {
+    data: document.getElementById('fData').value,
+    loja: document.getElementById('fLoja').value,
+    cod_loja: document.getElementById('fCodLoja').value,
+    nf: document.getElementById('fNF').value,
+    operador: document.getElementById('fOperador').value,
+    conferente: document.getElementById('fConferente').value,
+    materiais: materiaisTemp.filter(m => m.material)
+  };
+
+  if (editandoId !== null) {
+    const id = dados[editandoId].id;
+    await callSupabase('PATCH', 'retornos', obj, id);
+    Object.assign(dados[editandoId], obj);
+  } else {
+    const result = await callSupabase('POST', 'retornos', obj);
+    if (result && result[0]) {
+      dados.push(result[0]);
+    } else {
+      obj.id = Date.now();
+      dados.push(obj);
+    }
+  }
+
+  localStorage.setItem('retornosDados', JSON.stringify(dados));
+  atualizarUI();
+  goScreen('lista');
+}
+
+async function deletarIdx(idx) {
+  if (!confirm('Tem certeza?')) return;
+
+  const id = dados[idx].id;
+  await callSupabase('DELETE', 'retornos', null, id);
+
+  dados.splice(idx, 1);
+  localStorage.setItem('retornosDados', JSON.stringify(dados));
+  atualizarUI();
+}
+
+function verDetalhes(idx) {
+  const d = dados[idx];
+  let html = `
+    <p><strong>Data:</strong> ${d.data}</p>
+    <p><strong>Loja:</strong> ${d.loja} (${d.cod_loja})</p>
+    <p><strong>NF:</strong> ${d.nf}</p>
+    <p><strong>Operador:</strong> ${d.operador}</p>
+    <p><strong>Conferente:</strong> ${d.conferente}</p>
+    <h4 style="margin-top:20px;margin-bottom:10px;">Materiais:</h4>
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="background:var(--bg3);">
+          <th style="padding:8px;text-align:left;border-bottom:1px solid var(--border);">Material</th>
+          <th style="padding:8px;text-align:center;border-bottom:1px solid var(--border);">QTD NF</th>
+          <th style="padding:8px;text-align:center;border-bottom:1px solid var(--border);">QTD FIS</th>
+          <th style="padding:8px;text-align:center;border-bottom:1px solid var(--border);">Div</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  (d.materiais || []).forEach(m => {
+    const div = (m.qtd_nf || 0) - (m.qtd_fisica || 0);
+    html += `
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:8px;">${m.material}</td>
+        <td style="padding:8px;text-align:center;">${m.qtd_nf || 0}</td>
+        <td style="padding:8px;text-align:center;">${m.qtd_fisica || 0}</td>
+        <td style="padding:8px;text-align:center;">${div !== 0 ? '⚠️ ' + div : '✓'}</td>
+      </tr>
+    `;
+  });
+
+  html += '</tbody></table>';
+
+  document.getElementById('detTitle').textContent = `NF ${d.nf}`;
+  document.getElementById('detalhesContent').innerHTML = html;
+  goScreen('detalhes');
+}
+
+function editarRetorno() {
+  const idx = dados.findIndex(d => d.nf === document.getElementById('detTitle').textContent.replace('NF ', ''));
+  if (idx >= 0) editarIdx(idx);
+}
+
+function deletarRetorno() {
+  const idx = dados.findIndex(d => d.nf === document.getElementById('detTitle').textContent.replace('NF ', ''));
+  if (idx >= 0) deletarIdx(idx);
+}
+
+function exportExcel() {
+  const rows = [];
+  dados.forEach(d => {
+    (d.materiais || []).forEach(m => {
+      rows.push({
+        Data: d.data,
+        Loja: d.loja,
+        'Cód Loja': d.cod_loja,
+        NF: d.nf,
+        Material: m.material,
+        'QTD NF': m.qtd_nf,
+        'QTD FIS': m.qtd_fisica,
+        Divergência: (m.qtd_nf || 0) - (m.qtd_fisica || 0),
+        Operador: d.operador,
+        Conferente: d.conferente
+      });
+    });
+  });
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Retornos');
+  XLSX.writeFile(wb, `Retorno_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+function filterTable() {
+  const termo = document.getElementById('searchInput').value.toLowerCase();
+  document.querySelectorAll('#tableBody tr').forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(termo) ? '' : 'none';
+  });
+}
+
+function goScreen(screen) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + screen).classList.add('active');
+  if (screen === 'lista') atualizarUI();
+  if (screen === 'novo') novoRetorno();
+}
+
+window.addEventListener('load', () => {
+  carregarLocal();
+  syncNow();
+  setInterval(syncNow, 30000);
+});
+</script>
+</body>
+</html>
