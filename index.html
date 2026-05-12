@@ -35027,51 +35027,7 @@ function updateColabSelects(){
 // ═════════════════════════════════════════════════════════════
 // CONEXÃO SUPABASE - NOVO
 // ═════════════════════════════════════════════════════════════
-const SUPA_URL = 'https://hxurczwffqkjiffbjzxm.supabase.co';
-const SUPA_KEY = 'sb_publishable_jZGeQL30Ptls0EdjACAXKw_smwg3fAV';
 
-async function callSupabase(method, table, data = null, id = null) {
-  try {
-    const body = { method, table };
-    if (data) body.data = data;
-    if (id) body.id = id;
-
-    const res = await fetch('/.netlify/functions/supabase-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-
-    if (res.ok) return await res.json();
-    throw new Error('Erro ' + res.status);
-  } catch (e) {
-    console.log('Erro Supabase:', e.message);
-    return null;
-  }
-}
-
-async function carregarProdutosSupabase() {
-  const resultado = await callSupabase('GET', 'produtos');
-  if (resultado) {
-    const produtosOrdenados = resultado.sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
-    return produtosOrdenados.map(p => ({ 
-      id: p.id, 
-      nome: p.nome, 
-      categoria: p.categoria 
-    }));
-  }
-  return [];
-}
-
-async function sincronizarRetornosSupabase(){
-  const resultado = await callSupabase('GET', 'retornos');
-  
-  if(resultado){
-    S.retornos = resultado;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(S));
-    console.log('✓ Retornos sincronizados:', S.retornos.length);
-  }
-}
 
 // ═════════════════════════════════════════════════════════════
 // FUNÇÃO NOVA: renderMaterialesRetorno
@@ -35219,72 +35175,6 @@ function openModalEditarRetorno(idx){
   openModalRetorno(idx);
 }
 
-// ═════════════════════════════════════════════════════════════
-// FUNÇÃO MODIFICADA: saveRetorno
-// ═════════════════════════════════════════════════════════════
-async function saveRetorno(){
-  const data = document.getElementById('input-retorno-data').value;
-  const loja = document.getElementById('input-retorno-loja').value;
-  const codigo = document.getElementById('input-retorno-codigo').value;
-  const nf = document.getElementById('input-retorno-nf').value;
-  const operador = document.getElementById('input-retorno-operador').value;
-  const conferente = document.getElementById('input-retorno-conferente').value;
-  
-  if(!data || !loja || !nf || !operador || !conferente || tempMaterialesRetorno.length === 0){
-    alert('Preencha todos os campos e adicione pelo menos um material');
-    return;
-  }
-  
-  if(tempMaterialesRetorno.some(m => !m.material || m.qtdNf < 0 || m.qtdFis < 0)){
-    alert('Preencha todos os materiais e quantidades (mínimo 0)');
-    return;
-  }
-  
-  const nota = {
-    data: data,
-    loja: loja,
-    cod_loja: codigo,
-    nf: nf,
-    operador: operador,
-    conferente: conferente,
-    materiais: tempMaterialesRetorno.filter(m => m.material)
-  };
-  
-  if(currentEditIndex.retorno >= 0){
-    const idRetorno = S.retornos[currentEditIndex.retorno].id;
-    await callSupabase('PATCH', 'retornos', nota, idRetorno);
-    S.retornos[currentEditIndex.retorno] = { id: idRetorno, ...nota };
-    alert('Retorno atualizado!');
-  } else {
-    const resultado = await callSupabase('POST', 'retornos', nota);
-    if(resultado && resultado[0]){
-      S.retornos.push(resultado[0]);
-    } else {
-      nota.id = Date.now();
-      S.retornos.push(nota);
-    }
-    alert('Retorno salvo!');
-  }
-  
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(S));
-  closeModalRetorno();
-  renderAll();
-}
-
-// ═════════════════════════════════════════════════════════════
-// FUNÇÃO MODIFICADA: deleteRetorno
-// ═════════════════════════════════════════════════════════════
-async function deleteRetorno(idx){
-  if(!confirm('Tem certeza?')) return;
-  
-  const idRetorno = S.retornos[idx].id;
-  await callSupabase('DELETE', 'retornos', null, idRetorno);
-  
-  S.retornos.splice(idx, 1);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(S));
-  alert('Retorno deletado!');
-  renderAll();
-}
 
 function saveRetorno(){
   const data=document.getElementById('input-retorno-data').value;
